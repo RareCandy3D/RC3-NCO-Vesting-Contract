@@ -4,12 +4,17 @@ pragma solidity 0.8.3;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IRC3 {
     function ownerOf(uint256 tokenId) external view returns (address);
 }
 
 contract RCDYVest is Ownable {
+
+    using SafeMath for uint256;
+    using Address for address;
 
     IERC20 private rcdy;
     IRC3 private rc3;
@@ -24,8 +29,8 @@ contract RCDYVest is Ownable {
     
     mapping(uint => Slot) private _slots;
 
-    event Started(uint timestamp, uint duration);
-    event Withdrawn(address sender, uint releasedAmount);
+    event Started(uint indexed timestamp, uint indexed duration);
+    event Withdrawn(address indexed sender, uint indexed releasedAmount);
 
     constructor(address _rcdy, address _rc3, uint[] memory _ids, uint[] memory _bonus) {
 
@@ -47,14 +52,15 @@ contract RCDYVest is Ownable {
         require(start == 0, "vesting already started");
 
         start = block.timestamp;
-        duration = block.timestamp + _duration; 
+        duration = block.timestamp.add(_duration); 
 
-        emit Started(block.timestamp, block.timestamp + _duration);
+        emit Started(block.timestamp, block.timestamp.add(_duration));
         return true;
     }
 
     function withdraw(uint _id) external returns(bool) {
         
+        require(!msg.sender.isContract(), "RCDYVest: Benificiary not an EOA ");
         uint released = _calculateReleasedAmount(_id);
         require(released > 0, "you do not have any bonus available");
         
@@ -102,10 +108,13 @@ contract RCDYVest is Ownable {
         uint releasedPct;
         
         if (block.timestamp >= release) releasedPct = 100;
-        else releasedPct = ((block.timestamp - init) * 100000) / ((release - init) * 1000);
+        else releasedPct = ((block.timestamp.sub(init)).mul(100000)).div((release.sub(init)).mul(1000));
+        //releasedPct = ((block.timestamp - init) * 100000) / ((release - init) * 1000);
         
-        uint released = (bonus * releasedPct) / 100;
-        return released - withdrawn;
+        uint released = (bonus.mul(releasedPct)).div(100);
+        //released = (bonus * releasedPct) / 100;
+        return released.sub(withdrawn);
+        //return released - withdrawn;
     }
 
 }
