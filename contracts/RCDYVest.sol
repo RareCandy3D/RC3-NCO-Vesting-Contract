@@ -4,6 +4,7 @@ pragma solidity 0.8.3;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 interface IRC3 {
     function ownerOf(uint256 tokenId) external view returns (address);
@@ -22,10 +23,10 @@ contract RCDYVest is Ownable {
         uint withdrawn;
     }
     
-    mapping(uint => Slot) private _slots;
+    mapping(uint => Slot) private _slots; 
 
-    event Started(uint timestamp, uint duration);
-    event Withdrawn(address sender, uint releasedAmount);
+    event Started(address owner, uint timestamp, uint duration);
+    event Withdrawn(address indexed sender, uint releasedAmount);
 
     constructor(address _rcdy, address _rc3, uint[] memory _ids, uint[] memory _bonus) {
 
@@ -37,7 +38,7 @@ contract RCDYVest is Ownable {
             ids.push(_ids[i]);
             _slots[_ids[i]] = Slot({bonus: _bonus[i], withdrawn: 0});
         }
-
+ 
         rcdy = IERC20(_rcdy);
         rc3 = IRC3(_rc3);
     }
@@ -49,12 +50,15 @@ contract RCDYVest is Ownable {
         start = block.timestamp;
         duration = block.timestamp + _duration; 
 
-        emit Started(block.timestamp, block.timestamp + _duration);
+        emit Started(msg.sender, block.timestamp, block.timestamp + _duration);
         return true;
     }
 
     function withdraw(uint _id) external returns(bool) {
         
+        require(!Address.isContract(msg.sender), "only an externally owned address can call");
+        require(start != 0, "vesting has not started yet");
+
         uint released = _calculateReleasedAmount(_id);
         require(released > 0, "you do not have any bonus available");
         
@@ -64,7 +68,7 @@ contract RCDYVest is Ownable {
             _slots[_id].withdrawn = 0;
             _slots[_id].bonus = 0;
         }
-        return true;
+        return true; 
     }
  
     function getPending(uint _id) external view returns(uint pending_vest) {
