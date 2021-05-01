@@ -5,16 +5,12 @@ pragma solidity 0.8.3;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IRC3 {
     function ownerOf(uint256 tokenId) external view returns (address);
 }
 
 contract RCDYVest is Ownable {
-
-    using SafeMath for uint256;
-    using Address for address;
 
     IERC20 private rcdy;
     IRC3 private rc3;
@@ -27,42 +23,44 @@ contract RCDYVest is Ownable {
         uint withdrawn;
     }
     
-    mapping(uint => Slot) private _slots;
+    mapping(uint => Slot) private _slots; 
 
-    event Started(uint indexed timestamp, uint indexed duration);
-    event Withdrawn(address indexed sender, uint indexed releasedAmount);
+    event Started(address owner, uint timestamp, uint duration);
+    event Withdrawn(address indexed sender, uint releasedAmount);
 
     constructor(address _rcdy, address _rc3, uint[] memory _ids, uint[] memory _bonus) {
 
-        require(_rcdy != address(0), "cannot input zero address for rcdy");
-        require(_rc3 != address(0), "cannot input the zero address for rc3");
-        require(_ids.length == _bonus.length, 'ids and bonus arrays must have the same length');
+        require(_rcdy != address(0), "RCDYVest: cannot input zero address for rcdy");
+        require(_rc3 != address(0), "RCDYVest: cannot input the zero address for rc3");
+        require(_ids.length == _bonus.length, 'RCDYVest: ids and bonus arrays must have the same length');
         
         for(uint i = 0; i < _ids.length; i++) {
             ids.push(_ids[i]);
             _slots[_ids[i]] = Slot({bonus: _bonus[i], withdrawn: 0});
         }
-
+ 
         rcdy = IERC20(_rcdy);
         rc3 = IRC3(_rc3);
     }
 
     function startVesting(uint _duration) external onlyOwner() returns(bool) {
 
-        require(start == 0, "vesting already started");
+        require(start == 0, "RCDYVest: vesting already started");
 
         start = block.timestamp;
-        duration = block.timestamp.add(_duration); 
+        duration = block.timestamp + _duration; 
 
-        emit Started(block.timestamp, block.timestamp.add(_duration));
+        emit Started(msg.sender, block.timestamp, block.timestamp + _duration);
         return true;
     }
 
     function withdraw(uint _id) external returns(bool) {
         
-        require(!msg.sender.isContract(), "RCDYVest: Benificiary not an EOA ");
+        require(!Address.isContract(msg.sender), "RCDYVest: only an externally owned address can call");
+        require(start != 0, "RCDYVest: vesting has not started yet");
+
         uint released = _calculateReleasedAmount(_id);
-        require(released > 0, "you do not have any bonus available");
+        require(released > 0, "RCDYVest: you do not have any bonus available");
         
         _withdraw(_id, released);
         
@@ -70,7 +68,7 @@ contract RCDYVest is Ownable {
             _slots[_id].withdrawn = 0;
             _slots[_id].bonus = 0;
         }
-        return true;
+        return true; 
     }
  
     function getPending(uint _id) external view returns(uint pending_vest) {
@@ -91,10 +89,10 @@ contract RCDYVest is Ownable {
     function _withdraw(uint _id, uint _releasedAmount) internal {
         
         address currentOwner = rc3.ownerOf(_id);
-        require(msg.sender == currentOwner, "only owner of token id can call");
+        require(msg.sender == currentOwner, "RCDYVest: only owner of token id can call");
         
         _slots[_id].withdrawn = _slots[_id].withdrawn + _releasedAmount;
-        require(rcdy.transfer(msg.sender, _releasedAmount), "wait for more tokens to be added to contract");
+        require(rcdy.transfer(msg.sender, _releasedAmount), "RCDYVest: wait for more tokens to be added to contract");
     
         emit Withdrawn(msg.sender, _releasedAmount);
     }
@@ -108,13 +106,10 @@ contract RCDYVest is Ownable {
         uint releasedPct;
         
         if (block.timestamp >= release) releasedPct = 100;
-        else releasedPct = ((block.timestamp.sub(init)).mul(100000)).div((release.sub(init)).mul(1000));
-        //releasedPct = ((block.timestamp - init) * 100000) / ((release - init) * 1000);
+        else releasedPct = ((block.timestamp - init) * 100000) / ((release - init) * 1000);
         
-        uint released = (bonus.mul(releasedPct)).div(100);
-        //released = (bonus * releasedPct) / 100;
-        return released.sub(withdrawn);
-        //return released - withdrawn;
+        uint released = (bonus * releasedPct) / 100;
+        return released - withdrawn;
     }
 
 }
