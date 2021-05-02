@@ -30,9 +30,9 @@ contract RCDYVest is Ownable {
 
     constructor(address _rcdy, address _rc3, uint[] memory _ids, uint[] memory _bonus) {
 
-        require(_rcdy != address(0), "cannot input zero address for rcdy");
-        require(_rc3 != address(0), "cannot input the zero address for rc3");
-        require(_ids.length == _bonus.length, 'ids and bonus arrays must have the same length');
+        require(_rcdy != address(0), "RCDYVest: cannot input zero address for rcdy");
+        require(_rc3 != address(0), "RCDYVest: cannot input the zero address for rc3");
+        require(_ids.length == _bonus.length, 'RCDYVest: ids and bonus arrays must have the same length');
         
         for(uint i = 0; i < _ids.length; i++) {
             ids.push(_ids[i]);
@@ -45,7 +45,7 @@ contract RCDYVest is Ownable {
 
     function startVesting(uint _duration) external onlyOwner() returns(bool) {
 
-        require(start == 0, "vesting already started");
+        require(start == 0, "RCDYVest: vesting already started");
 
         start = block.timestamp;
         duration = block.timestamp + _duration; 
@@ -56,11 +56,11 @@ contract RCDYVest is Ownable {
 
     function withdraw(uint _id) external returns(bool) {
         
-        require(!Address.isContract(msg.sender), "only an externally owned address can call");
-        require(start != 0, "vesting has not started yet");
+        require(!Address.isContract(msg.sender), "RCDYVest: only an externally owned address can call");
+        require(start != 0, "RCDYVest: vesting has not started yet");
 
         uint released = _calculateReleasedAmount(_id);
-        require(released > 0, "you do not have any bonus available");
+        require(released > 0, "RCDYVest: you do not have any bonus available");
         
         _withdraw(_id, released);
         
@@ -89,10 +89,10 @@ contract RCDYVest is Ownable {
     function _withdraw(uint _id, uint _releasedAmount) internal {
         
         address currentOwner = rc3.ownerOf(_id);
-        require(msg.sender == currentOwner, "only owner of token id can call");
+        require(msg.sender == currentOwner, "RCDYVest: only owner of token id can call");
         
         _slots[_id].withdrawn = _slots[_id].withdrawn + _releasedAmount;
-        require(rcdy.transfer(msg.sender, _releasedAmount), "wait for more tokens to be added to contract");
+        require(rcdy.transfer(msg.sender, _releasedAmount), "RCDYVest: wait for more tokens to be added to contract");
     
         emit Withdrawn(msg.sender, _releasedAmount);
     }
